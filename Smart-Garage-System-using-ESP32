@@ -9,8 +9,8 @@
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <BlynkSimpleEsp32.h>
-char ssid[] = "Bahaa";
-char pass[] = "17320012012#bahaa";
+char ssid[] = "wifi name";
+char pass[] = "wifi pass";
 //keypad
 const byte r = 4;
 const byte c = 4;
