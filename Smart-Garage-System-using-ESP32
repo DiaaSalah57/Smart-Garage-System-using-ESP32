@@ -1,0 +1,281 @@
+#include  <Arduino.h>
+#include <LiquidCrystal.h>
+#include <ESP32Servo.h>
+#include <Keypad.h>
+#define BLYNK_PRINT Serial
+#define BLYNK_TEMPLATE_ID "TMPL2qc51V8De"
+#define BLYNK_TEMPLATE_NAME "final project"
+#define BLYNK_AUTH_TOKEN        "YCmVi7tztroiKasAck02ThSrzstjJFdy"
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <BlynkSimpleEsp32.h>
+char ssid[] = "Bahaa";
+char pass[] = "17320012012#bahaa";
+//keypad
+const byte r = 4;
+const byte c = 4;
+char hexaKeys[r][c]= {
+  {'1', '2', '3', 'A'},
+  {'4', '5', '6', 'B'} ,
+  {'7', '8', '9', 'C'},
+  {'*', '0', '#', 'D'}
+};
+byte rowPins[r] = {13,12,14,27}; 
+byte colPins[c] = {26,25,33,32};
+Keypad K = Keypad( makeKeymap(hexaKeys), rowPins, colPins, r , c);
+
+//password
+char passs[4]={};
+char storedpass[]="1234";
+int i =0,count=0;
+
+//time
+#define Wrong_pass_time 500
+#define flame_buzzer_time 100
+
+//pins
+#define buz 2
+#define flame_sensor 36
+#define slot1 34
+#define slot2 35
+#define slot3 17
+#define slot4 16
+#define D4 19 
+#define D5 21 
+#define D6 22
+#define D7 23 
+#define RS 5
+#define E 18
+
+//LCD
+LiquidCrystal lcd (RS, E, D4, D5, D6, D7);
+
+//variables
+int flame_detected;
+int occupied = 0;
+int available = 4;
+
+//Servo
+Servo door;
+
+void setup()
+{
+  Serial.begin(9600);
+  
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+  pinMode(buz,OUTPUT);
+  pinMode (flame_sensor,INPUT);
+  pinMode(slot1,INPUT);
+  pinMode(slot2,INPUT);
+  pinMode(slot3,INPUT);
+  pinMode(slot4,INPUT);
+  door.attach (4);
+  door.write(0);
+  lcd.begin(16,2);
+}
+
+void loop()
+{ 
+  Blynk.run();
+  //no. of slots 
+  occupied=0;
+
+  if (digitalRead(slot1) == LOW)
+  {
+    occupied++;
+  }
+  if (digitalRead(slot2) == LOW) 
+  {
+    occupied++;
+  }
+  if (digitalRead(slot3) == LOW) 
+  {
+    occupied++;
+  }
+  if (digitalRead(slot4) == LOW) 
+  {
+    occupied++;
+  }
+
+  available = 4 - occupied;
+  Serial.print("slots : ");
+  Serial.println(available);
+  delay(100);
+
+  char  oldkey = K.getKey();
+
+  if (oldkey==0)
+  {
+    lcd.clear();
+    lcd.print("AVB Slots: ");
+    lcd.print(available);
+    delay(100);
+  }
+
+//main pass code
+  if (oldkey=='A')
+  {
+    resetPass();
+    int c = 0;
+    bool breakloop = false;
+    while (c<=6 && !breakloop)
+    {
+       flame();
+       char  key = K.getKey();
+    if(key> 0 && key!='D' && key!='A')
+    {
+      passs[i]=key;
+      lcd.print('*');
+      Serial.print(key);
+      i++;
+      c++;
+    }
+  else if (key == 'D')
+  {
+    if (i==4)
+    {
+      for(int j =0; j<4; j++)
+      {
+        if (passs[j]==storedpass[j])
+        {
+          count++;
+        }
+      }
+        if (count==4)
+        {
+          lcd.clear();
+          lcd.setCursor(0,0);
+          lcd.print("Correct Pass     ");
+          for (int u=0; u<=90; u=u+5)
+          {
+            door.write(u);
+            delay(100);
+          }
+          delay(5000);
+          for (int u=90; u>=0; u=u-5)
+          {
+            door.write(u);
+            delay(100); 
+          }
+          breakloop = true;
+        }
+        else
+        {
+          buzz();
+          breakloop = true;
+        }
+        
+    }
+    else
+    {
+     buzz();
+     breakloop = true;
+    }
+  }
+ }
+ }
+
+flame();
+
+}
+
+void resetPass() 
+{
+  memset(passs, 0, sizeof(passs));
+  i = 0; 
+  count = 0; 
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("ENTER Password!   ");
+  lcd.setCursor(0, 1);
+}
+
+//buzzer
+void buzz()
+{
+  for(int q=0 ;q<=3 ;q++)
+  {
+   flame();
+   digitalWrite(buz,HIGH);
+   lcd.setCursor(0,0);
+   lcd.print("Wrong Pass!!     ");
+   delay(Wrong_pass_time);
+   flame();
+   digitalWrite(buz,LOW);
+   lcd.clear();
+   delay(Wrong_pass_time);
+  }
+  
+}
+
+//flame sensor 
+void flame()
+{
+  flame_detected = analogRead(flame_sensor);
+ Serial.println(flame_detected);
+ delay(100);
+  while(flame_detected < 350)
+   {
+   digitalWrite(buz,HIGH);
+   lcd.setCursor(0,0);
+   lcd.write("Daaal3nii !!");
+   delay(flame_buzzer_time);
+   digitalWrite(buz,LOW);
+   lcd.clear();
+   delay(flame_buzzer_time);
+   flame_detected = analogRead(flame_sensor);
+   }
+}
+
+String enteredPassword = ""; 
+void updateDisplay() {
+    Blynk.virtualWrite(V12, enteredPassword); // Update Value Display Widget
+    Blynk.virtualWrite(V15, available);
+}
+
+BLYNK_WRITE(V0) { if(param.asInt()){Serial.println("Pressed: 0");enteredPassword += "0";updateDisplay();} }
+BLYNK_WRITE(V1) { if(param.asInt()){Serial.println("Pressed: 1");enteredPassword += "1";updateDisplay();} }
+BLYNK_WRITE(V2) { if(param.asInt()){Serial.println("Pressed: 2");enteredPassword += "2";updateDisplay();} }
+BLYNK_WRITE(V3) { if(param.asInt()){Serial.println("Pressed: 3");enteredPassword += "3";updateDisplay();} }
+BLYNK_WRITE(V4) { if(param.asInt()){Serial.println("Pressed: 4");enteredPassword += "4";updateDisplay();} }
+BLYNK_WRITE(V5) { if(param.asInt()){Serial.println("Pressed: 5");enteredPassword += "5";updateDisplay();} }
+BLYNK_WRITE(V6) { if(param.asInt()){Serial.println("Pressed: 6");enteredPassword += "6";updateDisplay();} }
+BLYNK_WRITE(V7) { if(param.asInt()){Serial.println("Pressed: 7");enteredPassword += "7";updateDisplay();} }
+BLYNK_WRITE(V8) { if(param.asInt()){Serial.println("Pressed: 8");enteredPassword += "8";updateDisplay();} }
+BLYNK_WRITE(V9) { if(param.asInt()){Serial.println("Pressed: 9");enteredPassword += "9";updateDisplay();} }
+
+BLYNK_WRITE(V10) { if(param.asInt()){
+    Serial.println("Entered Password: " + enteredPassword);
+    if (enteredPassword == "1234") {  // Set your password
+        Blynk.virtualWrite(V12, "✅ Access Granted");
+        lcd.clear();
+        lcd.setCursor(0,0);
+        lcd.print("Correct Pass     ");
+        for (int u=0; u<=90; u=u+5)
+          {
+            door.write(u);
+            delay(100);
+          }
+          delay(5000);
+          for (int u=90; u>=0; u=u-5)
+          {
+            door.write(u);
+            delay(100); 
+          }
+        enteredPassword = "";  
+        updateDisplay();
+        return;  // Exit function to prevent showing ❌ Wrong Password
+    } 
+        Blynk.virtualWrite(V12, "❌ Wrong Password");
+        buzz();
+        delay(2000);  // Display result for 2 seconds
+        enteredPassword = "";  // Reset password
+        updateDisplay();
+}
+}
+
+// Handle "Clear" Press
+BLYNK_WRITE(V11) { 
+    enteredPassword = ""; 
+    updateDisplay();
+}
